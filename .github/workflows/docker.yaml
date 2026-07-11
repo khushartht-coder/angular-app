@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -29,10 +28,9 @@ jobs:
           password: ${{ secrets.ANGULAR_GHCR_PAT }}
 
       - name: Build Docker Image
-         run: |
-           docker build -t ghcr.io/${{ github.actor }}/${{ env.IMAGE_NAME }}:latest .
+        run: |
+          docker build -t ghcr.io/${{ github.actor }}/${{ env.IMAGE_NAME }}:latest .
 
       - name: Push Docker Image
         run: |
-          docker push ghcr.io/${{ github.actor }}/${{ env.IMAGE_NAME }}:latest- name: Build Docker Image
-        
+          docker push ghcr.io/${{ github.actor }}/${{ env.IMAGE_NAME }}:latest
