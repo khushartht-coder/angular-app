@@ -12,9 +12,9 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/demo-app-angular
   TAG: ${{ github.sha }}
 
-  permissions:
+permissions:
   contents: read
-  packages: write
+  packages: write  
 
 jobs:
   build:
