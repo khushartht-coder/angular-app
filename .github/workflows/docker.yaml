@@ -1,4 +1,4 @@
-name: Build Docker Image with Native Commands
+name: Build and Deploy Angular Application
 
 on:
   push:
@@ -9,34 +9,39 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: demo-app-angular
+  CONTAINER_NAME: demo-app-angular
+
 jobs:
   build:
+    name: Build and Push Image
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Login to GHCR
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Run Docker Build
+      - name: Build Docker Image
         run: |
-          docker build . -t $REGISTRY/$IMAGE_NAME:$TAG
-          echo "Docker build completed successfully!"
-          docker images
-          docker push $REGISTRY/$IMAGE_NAME:$TAG
+          docker build -t $REGISTRY/${{ github.repository_owner }}/$IMAGE_NAME:latest .
+
+      - name: Push Docker Image
+        run: |
+          docker push $REGISTRY/${{ github.repository_owner }}/$IMAGE_NAME:latest
 
   deploy:
-    name: Deploy to Server
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-
-      - name: Configure SSH
+      - name: Create SSH Key
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
           chmod 600 key.pem
@@ -46,23 +51,23 @@ jobs:
           ssh -i key.pem -o StrictHostKeyChecking=no \
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
 
-            # Clean Docker
-            sudo docker system prune -af
-            sudo docker volume prune -f
-            
-            # Pull latest image
-            sudo docker pull $REGISTRY/$IMAGE_NAME:$TAG
+          echo "Logging into GHCR..."
+          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-            # Stop and remove old container (ignore errors)
-            sudo docker rm -f demo-app-angular || true
-            
-            # Run new container
-            sudo docker run -d \
-              --name demo-app-angular \
-              -p 4200:80 \
-              $REGISTRY/$IMAGE_NAME:$TAG
+          echo "Pulling latest image..."
+          docker pull ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest
 
-            sudo docker ps -a
-            echo "Deployment completed successfully!"
-            sudo docker images
+          echo "Removing old container..."
+          docker rm -f $CONTAINER_NAME || true
+
+          echo "Running new container..."
+          docker run -d \
+            --name $CONTAINER_NAME \
+            --restart unless-stopped \
+            -p 4200:80 \
+            ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest
+
+          echo "Running Containers:"
+          docker ps
+
           EOF
