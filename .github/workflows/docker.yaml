@@ -25,15 +25,18 @@ jobs:
 
       - name: Login to GHCR
         run: |
-          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io \
+          -u "${{ github.repository_owner }}" \
+          --password-stdin
 
       - name: Build Docker Image
         run: |
-          docker build -t $REGISTRY/${{ github.repository_owner }}/$IMAGE_NAME:latest .
+          docker build \
+          -t ghcr.io/${{ github.repository_owner }}/demo-app-angular:latest .
 
       - name: Push Docker Image
         run: |
-          docker push $REGISTRY/${{ github.repository_owner }}/$IMAGE_NAME:latest
+          docker push ghcr.io/${{ github.repository_owner }}/demo-app-angular:latest
 
   deploy:
     name: Deploy to EC2
@@ -49,25 +52,42 @@ jobs:
       - name: Deploy Application
         run: |
           ssh -i key.pem -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
 
-          echo "Logging into GHCR..."
-          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "========== LOGIN TO GHCR =========="
 
-          echo "Pulling latest image..."
-          docker pull ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest
+          echo "${{ secrets.ANGULAR_GHCR_PAT }}" | docker login ghcr.io \
+          -u "${{ github.repository_owner }}" \
+          --password-stdin
 
-          echo "Removing old container..."
-          docker rm -f $CONTAINER_NAME || true
+          echo "========== PULL IMAGE =========="
 
-          echo "Running new container..."
+          docker pull ghcr.io/${{ github.repository_owner }}/demo-app-angular:latest
+
+          echo "========== REMOVE OLD CONTAINER =========="
+
+          docker rm -f demo-app-angular || true
+
+          echo "========== CLEANUP =========="
+
+          docker image prune -af
+
+          echo "========== START NEW CONTAINER =========="
+
           docker run -d \
-            --name $CONTAINER_NAME \
+            --name demo-app-angular \
             --restart unless-stopped \
             -p 4200:80 \
-            ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest
+            ghcr.io/${{ github.repository_owner }}/demo-app-angular:latest
 
-          echo "Running Containers:"
+          echo "========== RUNNING CONTAINERS =========="
+
           docker ps
+
+          echo "========== AVAILABLE IMAGES =========="
+
+          docker images
+
+          echo "========== DEPLOYMENT SUCCESSFUL =========="
 
           EOF
